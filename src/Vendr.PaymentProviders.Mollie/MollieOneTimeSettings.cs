@@ -2,7 +2,7 @@ using Vendr.Core.Web.PaymentProviders;
 
 namespace Vendr.PaymentProviders.Mollie
 {
-    public class MollieSettings
+    public class MollieOneTimeSettings
     {
         [PaymentProviderSetting(Name = "Continue URL",
             Description = "The URL to continue to after this provider has done processing. eg: /continue/",
@@ -23,11 +23,6 @@ namespace Vendr.PaymentProviders.Mollie
             Description = "The order property alias containing line 1 of the billing address",
             SortOrder = 400)]
         public string BillingAddressLine1PropertyAlias { get; set; }
-
-        //[PaymentProviderSetting(Name = "Billing Address (Line 2) Property Alias",
-        //    Description = "The order property alias containing line 2 of the billing address",
-        //    SortOrder = 500)]
-        //public string BillingAddressLine2PropertyAlias { get; set; }
 
         [PaymentProviderSetting(Name = "Billing Address City Property Alias",
             Description = "The order property alias containing the city of the billing address",
@@ -66,5 +61,23 @@ namespace Vendr.PaymentProviders.Mollie
             IsAdvanced = true,
             SortOrder = 1000100)]
         public string Locale { get; set; }
+
+        [PaymentProviderSetting(Name = "Payment Methods",
+            Description = "A comma separated list of payment methods to limit the payment method selection screen by. Can be 'applepay', 'bancontact', 'banktransfer', 'belfius', 'creditcard', 'directdebit', 'eps', 'giftcard', 'giropay', 'ideal', 'kbc', 'klarnapaylater', 'klarnasliceit', 'mybank', 'paypal', 'paysafecard', 'przelewy24', 'sofort' or 'voucher'.",
+            IsAdvanced = true,
+            SortOrder = 1000200)]
+        public string PaymentMethods { get; set; }
+
+        [PaymentProviderSetting(Name = "Order Line Product Type Property Alias",
+            Description = "The order line property alias containing a Mollie product type for the order line. Can be either 'physical' or 'digital'.",
+            IsAdvanced = true,
+            SortOrder = 1000300)]
+        public string OrderLineProductTypePropertyAlias { get; set; }
+
+        [PaymentProviderSetting(Name = "Order Line Product Category Property Alias",
+            Description = "The order line property alias containing a Mollie product category for the order line. Can be 'meal', 'eco' or 'gift'.",
+            IsAdvanced = true,
+            SortOrder = 1000300)]
+        public string OrderLineProductCategoryPropertyAlias { get; set; }
     }
 }

@@ -93,8 +93,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MolliePaymentProvider.cs" />
-    <Compile Include="MollieSettings.cs" />
+    <Compile Include="MollieOneTimePaymentProvider.cs" />
+    <Compile Include="MollieOneTimeSettings.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\VersionInfo.cs" />
   </ItemGroup>
@@ -104,4 +104,17 @@
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>REM #################################################
+REM # Copy files
+REM #################################################
+
+IF %25ComputerName%25 == DESKTOP-ESFKU58 (
+IF NOT "$(SolutionDir)" == "*Undefined*" (
+xcopy /s /y "$(TargetPath)" "$(SolutionDir)\..\..\Sandbox3\src\Vendr.DemoStore.Web\bin"
+xcopy /s /y "$(TargetDir)$(ProjectName).pdb" "$(SolutionDir)\..\..\Sandbox3\src\Vendr.DemoStore.Web\bin"
+xcopy /s /y "$(TargetDir)Mollie.Api.dll" "$(SolutionDir)\..\..\Sandbox3\src\Vendr.DemoStore.Web\bin"
+)
+)</PostBuildEvent>
+  </PropertyGroup>
 </Project>

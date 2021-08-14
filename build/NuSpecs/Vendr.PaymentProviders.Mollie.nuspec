@@ -17,7 +17,7 @@
         <dependencies>
             <group targetFramework="net472">
                 <dependency id="Vendr.Core.Web" version="[0.1.0,1.999999)" />
-                <!--<dependency id="UmbracoCms.Core" version="[$MinUmbracoVersion$]" />-->
+                <dependency id="Mollie.Api" version="[2.1.0.8,2.999999)" />
             </group>
         </dependencies>
     </metadata>

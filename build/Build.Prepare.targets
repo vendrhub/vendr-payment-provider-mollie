@@ -9,9 +9,7 @@
 			<BinFiles Include="$(SourceDir)\Vendr.*\bin\$(BuildConfiguration)\$(ProjectName).dll" />
             <BinFiles Include="$(SourceDir)\Vendr.*\bin\$(BuildConfiguration)\$(ProjectName).pdb" />
             <BinFiles Include="$(SourceDir)\Vendr.*\bin\$(BuildConfiguration)\$(ProjectName).xml" />
-            <!-- BEGIN DLL DEPENDENCIES-->
-            <!--<BinFiles Include="$(SourceDir)\Vendr.*\bin\$(BuildConfiguration)\Your.Dependency.dll" />-->
-            <!-- END DLL DEPENDENCIES-->
+            <BinFiles Include="$(SourceDir)\Vendr.*\bin\$(BuildConfiguration)\Mollie.Api.dll" />
             <AssetFiles Include="$(RootDir)\assets\*" />
             <VendrLicenseFile Include="$(RootDir)\LICENSE.md" />
 		</ItemGroup>
