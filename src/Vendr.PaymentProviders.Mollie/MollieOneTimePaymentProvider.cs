@@ -62,7 +62,7 @@ namespace Vendr.PaymentProviders.Mollie
                 : null;
 
             // Adjustments helper
-            var processPriceAdjustments = new Action<IReadOnlyCollection<PriceAdjustment>, List<OrderLineRequest>>((adjustments, orderLines) =>
+            var processPriceAdjustments = new Action<IReadOnlyCollection<PriceAdjustment>, List<OrderLineRequest>, string>((adjustments, orderLines, namePrefix) =>
             {
                 foreach (var adjustment in adjustments)
                 {
@@ -72,12 +72,12 @@ namespace Vendr.PaymentProviders.Mollie
                     orderLines.Add(new OrderLineRequest
                     {
                         Sku = isDiscount ? "DISCOUNT" : "SURCHARGE",
-                        Name = adjustment.Name,
+                        Name = (namePrefix + " " + (isDiscount ? "Discount" : "Fee") + " - " + adjustment.Name).Trim(),
                         Type = isDiscount ? MollieOrderLineType.Discount : MollieOrderLineType.Surcharge,
                         Quantity = 1,
                         UnitPrice = new MollieAmmount(currency.Code, adjustment.Price.WithTax),
-                        VatRate = (taxRate * 100).ToString(CultureInfo.InvariantCulture),
-                        VatAmount = new MollieAmmount(currency.Code, adjustment.Price.WithTax),
+                        VatRate = (taxRate * 100).ToString("0.00", CultureInfo.InvariantCulture),
+                        VatAmount = new MollieAmmount(currency.Code, adjustment.Price.Tax),
                         TotalAmount = new MollieAmmount(currency.Code, adjustment.Price.WithTax)
                     });
                 }
@@ -114,7 +114,7 @@ namespace Vendr.PaymentProviders.Mollie
                     Name = orderLine.Name,
                     Quantity = (int)orderLine.Quantity,
                     UnitPrice = new MollieAmmount(currency.Code, orderLine.UnitPrice.WithoutAdjustments.WithTax),
-                    VatRate = (orderLine.TaxRate.Value * 100).ToString(CultureInfo.InvariantCulture),
+                    VatRate = (orderLine.TaxRate.Value * 100).ToString("0.00", CultureInfo.InvariantCulture),
                     VatAmount = new MollieAmmount(currency.Code, orderLine.TotalPrice.Value.Tax),
                     TotalAmount = new MollieAmmount(currency.Code, orderLine.TotalPrice.Value.WithTax)
                 };
@@ -143,43 +143,65 @@ namespace Vendr.PaymentProviders.Mollie
 
             // Process subtotal price adjustments
             if (order.SubtotalPrice.Adjustments.Count > 0)
-                processPriceAdjustments.Invoke(order.SubtotalPrice.Adjustments, mollieOrderLines);
+                processPriceAdjustments.Invoke(order.SubtotalPrice.Adjustments, mollieOrderLines, "Subtotal");
 
             // Process payment fee
-            if (order.PaymentInfo.TotalPrice.Value.WithTax > 0)
+            if (order.PaymentInfo.TotalPrice.WithoutAdjustments.WithTax > 0)
             {
-                mollieOrderLines.Add(new OrderLineRequest
+                var paymentOrderLine = new OrderLineRequest
                 {
                     Sku = !string.IsNullOrWhiteSpace(paymentMethod.Sku) ? paymentMethod.Sku : "PF001",
                     Name = paymentMethod.Name + " Fee",
                     Type = MollieOrderLineType.Surcharge,
                     Quantity = 1,
-                    UnitPrice = new MollieAmmount(currency.Code, order.PaymentInfo.TotalPrice.Value.WithTax),
-                    VatRate = (order.PaymentInfo.TaxRate.Value * 100).ToString(CultureInfo.InvariantCulture),
+                    UnitPrice = new MollieAmmount(currency.Code, order.PaymentInfo.TotalPrice.WithoutAdjustments.WithTax),
+                    VatRate = (order.PaymentInfo.TaxRate.Value * 100).ToString("0.00", CultureInfo.InvariantCulture),
                     VatAmount = new MollieAmmount(currency.Code, order.PaymentInfo.TotalPrice.Value.Tax),
                     TotalAmount = new MollieAmmount(currency.Code, order.PaymentInfo.TotalPrice.Value.WithTax)
-                });
+                };
+
+                if (order.PaymentInfo.TotalPrice.Adjustment.WithTax < 0)
+                {
+                    paymentOrderLine.DiscountAmount = new MollieAmmount(currency.Code, order.PaymentInfo.TotalPrice.Adjustment.WithTax * -1);
+                }
+                else if (order.PaymentInfo.TotalPrice.Adjustment.WithTax > 0)
+                {
+                    // Not sure we can handle an order line fee?
+                }
+
+                mollieOrderLines.Add(paymentOrderLine);
             }
 
             // Process shipping fee
-            if (shippingMethod != null && order.ShippingInfo.TotalPrice.Value.WithTax > 0)
+            if (shippingMethod != null && order.ShippingInfo.TotalPrice.WithoutAdjustments.WithTax > 0)
             {
-                mollieOrderLines.Add(new OrderLineRequest
+                var shippingOrderLine = new OrderLineRequest
                 {
                     Sku = !string.IsNullOrWhiteSpace(shippingMethod.Sku) ? shippingMethod.Sku : "SF001",
                     Name = shippingMethod.Name + " Fee",
                     Type = MollieOrderLineType.ShippingFee,
                     Quantity = 1,
-                    UnitPrice = new MollieAmmount(currency.Code, order.ShippingInfo.TotalPrice.Value.WithTax),
-                    VatRate = (order.ShippingInfo.TaxRate.Value * 100).ToString(CultureInfo.InvariantCulture),
+                    UnitPrice = new MollieAmmount(currency.Code, order.ShippingInfo.TotalPrice.WithoutAdjustments.WithTax),
+                    VatRate = (order.ShippingInfo.TaxRate.Value * 100).ToString("0.00", CultureInfo.InvariantCulture),
                     VatAmount = new MollieAmmount(currency.Code, order.ShippingInfo.TotalPrice.Value.Tax),
                     TotalAmount = new MollieAmmount(currency.Code, order.ShippingInfo.TotalPrice.Value.WithTax)
-                });
+                };
+
+                if (order.ShippingInfo.TotalPrice.Adjustment.WithTax < 0)
+                {
+                    shippingOrderLine.DiscountAmount = new MollieAmmount(currency.Code, order.ShippingInfo.TotalPrice.Adjustment.WithTax * -1);
+                }
+                else if (order.ShippingInfo.TotalPrice.Adjustment.WithTax > 0)
+                {
+                    // Not sure we can handle an order line fee?
+                }
+
+                mollieOrderLines.Add(shippingOrderLine);
             }
 
             // Process total price adjustments
             if (order.TotalPrice.Adjustments.Count > 0)
-                processPriceAdjustments.Invoke(order.TotalPrice.Adjustments, mollieOrderLines);
+                processPriceAdjustments.Invoke(order.TotalPrice.Adjustments, mollieOrderLines, "Total");
 
             // Process gift cards
             var giftCards = order.TransactionAmount.Adjustments.OfType<GiftCardAdjustment>().ToList();
@@ -190,7 +212,7 @@ namespace Vendr.PaymentProviders.Mollie
                     mollieOrderLines.Add(new OrderLineRequest
                     {
                         Sku = "GIFT_CARD",
-                        Name = giftCard.GiftCardCode,
+                        Name = "Gift Card - " + giftCard.GiftCardCode,
                         Type = MollieOrderLineType.GiftCard,
                         Quantity = 1,
                         UnitPrice = new MollieAmmount(currency.Code, giftCard.Amount.Value),
@@ -212,7 +234,7 @@ namespace Vendr.PaymentProviders.Mollie
                     mollieOrderLines.Add(new OrderLineRequest
                     {
                         Sku = isDiscount ? "DISCOUNT" : "SURCHARGE",
-                        Name = adjustment.Name,
+                        Name = "Transaction " + (isDiscount ? "Discount" : "Fee") + " - " + adjustment.Name,
                         Type = isDiscount ? MollieOrderLineType.Discount : MollieOrderLineType.Surcharge,
                         Quantity = 1,
                         UnitPrice = new MollieAmmount(currency.Code, adjustment.Amount.Value),
@@ -302,7 +324,7 @@ namespace Vendr.PaymentProviders.Mollie
 
         private CallbackResult ProcessRedirectCallback(OrderReadOnly order, HttpRequestBase request, MollieOneTimeSettings settings)
         {
-            var response = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.Moved);
+            var response = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.Found);
 
             var mollieOrderId = order.Properties["mollieOrderId"];
             var mollieOrderClient = new OrderClient(settings.TestMode ? settings.TestApiKey : settings.LiveApiKey);
