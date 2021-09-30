@@ -2,7 +2,7 @@
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29503.13
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vendr.PaymentProvider.Mollie", "src\Vendr.PaymentProvider.Mollie\Vendr.PaymentProvider.Mollie.csproj", "{1AC2CE83-B474-4776-BE0C-227FED386D5F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vendr.PaymentProviders.Mollie", "src\Vendr.PaymentProviders.Mollie\Vendr.PaymentProviders.Mollie.csproj", "{1AC2CE83-B474-4776-BE0C-227FED386D5F}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "_build", "build\_build.csproj", "{F9094F2A-B15B-425A-8600-819134240391}"
 EndProject
