@@ -20,7 +20,7 @@ variables:
   - name: 'nuGetOrgServiceCreds'
     value: 'NuGet.org (Vendr)'
   - name: 'packageName'
-    value: 'Vendr.PaymentProviders.PayPal'
+    value: 'Vendr.PaymentProviders.Mollie'
 
 stages:
 
