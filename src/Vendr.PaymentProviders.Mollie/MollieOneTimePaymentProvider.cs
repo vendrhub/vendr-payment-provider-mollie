@@ -369,7 +369,7 @@ namespace Vendr.PaymentProviders.Mollie
                 AmountAuthorized = decimal.Parse(mollieOrder.Amount.Value, CultureInfo.InvariantCulture),
                 TransactionFee = 0m,
                 TransactionId = mollieOrderId,
-                PaymentStatus = GetPaymentStatus(mollieOrder)
+                PaymentStatus = paymentStatus
             });
         }
 
