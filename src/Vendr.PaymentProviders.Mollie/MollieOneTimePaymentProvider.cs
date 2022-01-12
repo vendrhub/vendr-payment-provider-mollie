@@ -357,7 +357,13 @@ namespace Vendr.PaymentProviders.Mollie
 
             var mollieOrderClient = new OrderClient(ctx.Settings.TestMode ? ctx.Settings.TestApiKey : ctx.Settings.LiveApiKey);
             var mollieOrder = await mollieOrderClient.GetOrderAsync(mollieOrderId, true, true);
-
+            var paymentStatus = GetPaymentStatus(mollieOrder);
+            
+            // Mollie sends cancelled notifications for unfinalized orders so we need to ensure that
+            // we only cancel orders that are authorized
+            if (paymentStatus == PaymentStatus.Cancelled && ctx.Order.TransactionInfo.PaymentStatus != PaymentStatus.Authorized)
+                return CallbackResult.Ok();
+            
             return CallbackResult.Ok(new TransactionInfo
             {
                 AmountAuthorized = decimal.Parse(mollieOrder.Amount.Value, CultureInfo.InvariantCulture),
