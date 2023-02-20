@@ -325,7 +325,10 @@ namespace Vendr.PaymentProviders.Mollie
 
         private async Task<CallbackResult> ProcessRedirectCallbackAsync(PaymentProviderContext<MollieOneTimeSettings> ctx)
         {
-            var response = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.Found);
+            var result = new CallbackResult
+            {
+                HttpResponse = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.Found)
+            };
 
             var mollieOrderId = ctx.Order.Properties["mollieOrderId"];
             var mollieOrderClient = new OrderClient(ctx.Settings.TestMode ? ctx.Settings.TestApiKey : ctx.Settings.LiveApiKey);
@@ -333,17 +336,28 @@ namespace Vendr.PaymentProviders.Mollie
 
             if (mollieOrder.Embedded.Payments.All(x => x.Status == MolliePaymentStatus.Canceled))
             {
-                response.Headers.Location = new Uri(ctx.Urls.CancelUrl);
+                result.HttpResponse.Headers.Location = new Uri(ctx.Urls.CancelUrl);
             }
             else
             {
-                response.Headers.Location = new Uri(ctx.Urls.ContinueUrl);
+                // If the order is pending, Mollie won't sent a webhook notification so
+                // we check for this on the return URL and if the order is pending, finalize it
+                // and set it's status to pending
+                if (mollieOrder.Status.Equals("pending", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    result.TransactionInfo = new TransactionInfo
+                    {
+                        AmountAuthorized = decimal.Parse(mollieOrder.Amount.Value, CultureInfo.InvariantCulture),
+                        TransactionFee = 0m,
+                        TransactionId = mollieOrderId,
+                        PaymentStatus = PaymentStatus.PendingExternalSystem
+                    };
+                }
+
+                result.HttpResponse.Headers.Location = new Uri(ctx.Urls.ContinueUrl);
             }
 
-            return new CallbackResult
-            {
-                HttpResponse = response
-            };
+            return result;
         }
 
         private async Task<CallbackResult> ProcessWebhookCallbackAsync(PaymentProviderContext<MollieOneTimeSettings> ctx)
