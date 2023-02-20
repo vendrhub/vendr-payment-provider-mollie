@@ -342,7 +342,7 @@ namespace Vendr.PaymentProviders.Mollie
             {
                 // If the order is pending, Mollie won't sent a webhook notification so
                 // we check for this on the return URL and if the order is pending, finalize it
-                // and set it's status to pending
+                // and set it's status to pending before progressing to the confirmation page
                 if (mollieOrder.Status.Equals("pending", StringComparison.InvariantCultureIgnoreCase))
                 {
                     result.TransactionInfo = new TransactionInfo
