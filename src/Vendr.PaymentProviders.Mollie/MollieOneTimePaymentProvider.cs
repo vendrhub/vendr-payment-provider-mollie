@@ -40,6 +40,11 @@ namespace Vendr.PaymentProviders.Mollie
         public override bool CanCapturePayments => true;
         public override bool FinalizeAtContinueUrl => false;
 
+        public override IEnumerable<TransactionMetaDataDefinition> TransactionMetaDataDefinitions => new[]{
+            new TransactionMetaDataDefinition("mollieOrderId", "Mollie Order ID"),
+            new TransactionMetaDataDefinition("molliePaymentMethod", "Mollie Payment Method")
+        };
+
         public override string GetCancelUrl(PaymentProviderContext<MollieOneTimeSettings> ctx)
         {
             ctx.Settings.MustNotBeNull("settings");
@@ -385,6 +390,11 @@ namespace Vendr.PaymentProviders.Mollie
                 TransactionFee = 0m,
                 TransactionId = mollieOrderId,
                 PaymentStatus = paymentStatus
+            }, 
+            new Dictionary<string, string>
+            {
+                { "mollieOrderId", mollieOrder.Id },
+                { "molliePaymentMethod", mollieOrder.Method }
             });
         }
 
