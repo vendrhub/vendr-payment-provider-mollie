@@ -1,5 +1,6 @@
 using Mollie.Api.Client;
 using Mollie.Api.Models.Order;
+using Mollie.Api.Models.Shipment;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -34,10 +35,15 @@ namespace Vendr.PaymentProviders.Mollie
         }
 
         public override bool CanFetchPaymentStatus => true;
-        public override bool CanCancelPayments => false;
-        public override bool CanRefundPayments => false;
-        public override bool CanCapturePayments => false;
+        public override bool CanCancelPayments => true;
+        public override bool CanRefundPayments => true;
+        public override bool CanCapturePayments => true;
         public override bool FinalizeAtContinueUrl => false;
+
+        public override IEnumerable<TransactionMetaDataDefinition> TransactionMetaDataDefinitions => new[]{
+            new TransactionMetaDataDefinition("mollieOrderId", "Mollie Order ID"),
+            new TransactionMetaDataDefinition("molliePaymentMethod", "Mollie Payment Method")
+        };
 
         public override string GetCancelUrl(PaymentProviderContext<MollieOneTimeSettings> ctx)
         {
@@ -324,7 +330,10 @@ namespace Vendr.PaymentProviders.Mollie
 
         private async Task<CallbackResult> ProcessRedirectCallbackAsync(PaymentProviderContext<MollieOneTimeSettings> ctx)
         {
-            var response = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.Found);
+            var result = new CallbackResult
+            {
+                HttpResponse = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.Found)
+            };
 
             var mollieOrderId = ctx.Order.Properties["mollieOrderId"];
             var mollieOrderClient = new OrderClient(ctx.Settings.TestMode ? ctx.Settings.TestApiKey : ctx.Settings.LiveApiKey);
@@ -332,17 +341,28 @@ namespace Vendr.PaymentProviders.Mollie
 
             if (mollieOrder.Embedded.Payments.All(x => x.Status == MolliePaymentStatus.Canceled))
             {
-                response.Headers.Location = new Uri(ctx.Urls.CancelUrl);
+                result.HttpResponse.Headers.Location = new Uri(ctx.Urls.CancelUrl);
             }
             else
             {
-                response.Headers.Location = new Uri(ctx.Urls.ContinueUrl);
+                // If the order is pending, Mollie won't sent a webhook notification so
+                // we check for this on the return URL and if the order is pending, finalize it
+                // and set it's status to pending before progressing to the confirmation page
+                if (mollieOrder.Status.Equals("pending", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    result.TransactionInfo = new TransactionInfo
+                    {
+                        AmountAuthorized = decimal.Parse(mollieOrder.Amount.Value, CultureInfo.InvariantCulture),
+                        TransactionFee = 0m,
+                        TransactionId = mollieOrderId,
+                        PaymentStatus = PaymentStatus.PendingExternalSystem
+                    };
+                }
+
+                result.HttpResponse.Headers.Location = new Uri(ctx.Urls.ContinueUrl);
             }
 
-            return new CallbackResult
-            {
-                HttpResponse = response
-            };
+            return result;
         }
 
         private async Task<CallbackResult> ProcessWebhookCallbackAsync(PaymentProviderContext<MollieOneTimeSettings> ctx)
@@ -357,7 +377,7 @@ namespace Vendr.PaymentProviders.Mollie
 
             var mollieOrderClient = new OrderClient(ctx.Settings.TestMode ? ctx.Settings.TestApiKey : ctx.Settings.LiveApiKey);
             var mollieOrder = await mollieOrderClient.GetOrderAsync(mollieOrderId, true, true);
-            var paymentStatus = GetPaymentStatus(mollieOrder);
+            var paymentStatus = await GetPaymentStatus(mollieOrderClient, mollieOrder);
             
             // Mollie sends cancelled notifications for unfinalized orders so we need to ensure that
             // we only cancel orders that are authorized
@@ -370,6 +390,11 @@ namespace Vendr.PaymentProviders.Mollie
                 TransactionFee = 0m,
                 TransactionId = mollieOrderId,
                 PaymentStatus = paymentStatus
+            }, 
+            new Dictionary<string, string>
+            {
+                { "mollieOrderId", mollieOrder.Id },
+                { "molliePaymentMethod", mollieOrder.Method }
             });
         }
 
@@ -384,12 +409,70 @@ namespace Vendr.PaymentProviders.Mollie
                 TransactionInfo = new TransactionInfoUpdate()
                 {
                     TransactionId = ctx.Order.TransactionInfo.TransactionId,
-                    PaymentStatus = GetPaymentStatus(mollieOrder)
+                    PaymentStatus = await GetPaymentStatus(mollieOrderClient, mollieOrder)
                 }
             };
         }
 
-        private PaymentStatus GetPaymentStatus(OrderResponse order)
+        public override async Task<ApiResult> CancelPaymentAsync(PaymentProviderContext<MollieOneTimeSettings> ctx)
+        {
+            var mollieOrderId = ctx.Order.Properties["mollieOrderId"];
+            var mollieOrderClient = new OrderClient(ctx.Settings.TestMode ? ctx.Settings.TestApiKey : ctx.Settings.LiveApiKey);
+            
+            await mollieOrderClient.CancelOrderAsync(mollieOrderId);
+
+            var mollieOrder = await mollieOrderClient.GetOrderAsync(mollieOrderId, true, true);
+
+            return new ApiResult
+            {
+                TransactionInfo = new TransactionInfoUpdate()
+                {
+                    TransactionId = ctx.Order.TransactionInfo.TransactionId,
+                    PaymentStatus = await GetPaymentStatus(mollieOrderClient, mollieOrder)
+                }
+            };
+        }
+
+        public override async Task<ApiResult> RefundPaymentAsync(PaymentProviderContext<MollieOneTimeSettings> ctx)
+        {
+            var mollieOrderId = ctx.Order.Properties["mollieOrderId"];
+            var mollieOrderClient = new OrderClient(ctx.Settings.TestMode ? ctx.Settings.TestApiKey : ctx.Settings.LiveApiKey);
+
+            await mollieOrderClient.CreateOrderRefundAsync(mollieOrderId, new OrderRefundRequest());
+
+            var mollieOrder = await mollieOrderClient.GetOrderAsync(mollieOrderId, true, true);
+
+            return new ApiResult
+            {
+                TransactionInfo = new TransactionInfoUpdate()
+                {
+                    TransactionId = ctx.Order.TransactionInfo.TransactionId,
+                    PaymentStatus = await GetPaymentStatus(mollieOrderClient, mollieOrder)
+                }
+            };
+        }
+
+        public override async Task<ApiResult> CapturePaymentAsync(PaymentProviderContext<MollieOneTimeSettings> ctx)
+        {
+            var mollieOrderId = ctx.Order.Properties["mollieOrderId"];
+            var mollieShipmentClient = new ShipmentClient(ctx.Settings.TestMode ? ctx.Settings.TestApiKey : ctx.Settings.LiveApiKey);
+            var mollieOrderClient = new OrderClient(ctx.Settings.TestMode ? ctx.Settings.TestApiKey : ctx.Settings.LiveApiKey);
+
+            await mollieShipmentClient.CreateShipmentAsync(mollieOrderId, new ShipmentRequest());
+
+            var mollieOrder = await mollieOrderClient.GetOrderAsync(mollieOrderId, true, true);
+
+            return new ApiResult
+            {
+                TransactionInfo = new TransactionInfoUpdate()
+                {
+                    TransactionId = ctx.Order.TransactionInfo.TransactionId,
+                    PaymentStatus = await GetPaymentStatus(mollieOrderClient, mollieOrder)
+                }
+            };
+        }
+
+        private async Task<PaymentStatus> GetPaymentStatus(OrderClient orderClient, OrderResponse order)
         {
             // The order is refunded if the total refunded amount is
             // greater than or equal to the original amount of the order
@@ -402,6 +485,14 @@ namespace Vendr.PaymentProviders.Mollie
                 {
                     return PaymentStatus.Refunded;
                 }
+            }
+
+            // If there are any open refunds that are not in a failed status
+            // we'll just assume to the order is refunded untill we know otherwise
+            var refunds = await orderClient.GetOrderRefundListAsync(order.Id);
+            if (refunds?.Items != null && refunds.Items.Any(x => x.Status != "failed"))
+            {
+                return PaymentStatus.Refunded;
             }
 
             // If the order is in a shipping status, at least one of the order lines

@@ -16,7 +16,7 @@ trigger:
 variables:
   - group: 'vendr'
   - name: 'vmImageName'
-    value: 'vs2017-win2016'
+    value: 'windows-latest'
   - name: 'nuGetOrgServiceCreds'
     value: 'NuGet.org (Vendr)'
   - name: 'packageName'
@@ -35,9 +35,25 @@ stages:
         displayName: 'Build'
         dependsOn: [ ]
         steps:
+
+          # Install .NET 5
+          - task: UseDotNet@2
+            displayName: 'Use .NET Core sdk 3.0.x'
+            inputs:
+               version: 3.0.x
+               # includePreviewVersions: true
+
+          # Install .NET 5
+          - task: UseDotNet@2
+            displayName: 'Use .NET Core sdk 5.0.x'
+            inputs:
+               version: 5.0.x
+               # includePreviewVersions: true
+
           - task: CmdLine@2
             inputs:
               script: './build.cmd Pack'
+
           - task: PublishBuildArtifacts@1
             inputs:
               pathToPublish: './artifacts'
